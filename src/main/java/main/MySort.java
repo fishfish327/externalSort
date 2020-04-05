@@ -1,86 +1,204 @@
 package main;
 
-import sort.SortFunction;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+
 
 public class MySort {
-    public static List<String> generateFile(String fileName, int n) throws IOException {
-        BufferedReader reader = new BufferedReader(new FileReader(fileName));
-        File inputFile = new File(fileName);
-        long inputFileSize = inputFile.length();
-        long outputFileSize = inputFileSize / n;
-        long totalRead = 0;
-        List<String> res = new ArrayList<>();
-        for(int i = 0; i < n; i++){
-            String tmpFileName = fileName + "-output-" + i;
-            char[] buffer = new char[(int) outputFileSize];
-            reader.read(buffer,(int)totalRead, (int)outputFileSize );
-            SortFunction.quickSort(buffer);
-            File outputFile = new File(tmpFileName);
-            outputFile.createNewFile();
-            FileWriter writer = new FileWriter(outputFile);
-            writer.write(buffer);
-            writer.close();
-            res.add(tmpFileName);
-            System.out.println("Generate file : " + fileName + "with size of: " + outputFileSize);
-
+    // parameter numOfThread
+    public static void main(String args[])
+    {
+        //check for input
+        if(args.length<2)
+        {
+            System.out.println("Usage [input file] [output file]");
+            return;
         }
-        return res;
 
-    }
+        try
+        {
+            String input_file = args[0];
+            String output_file = args[1];
+            int r_n = 4;
+            long startTime = System.nanoTime();
 
-    public void sortFiles(List<String> fileList, int bufferSize, String outputFileName) throws IOException {
-        int num = fileList.size();
-        List<ReadBufferNode> readBufferNodeList = new ArrayList<>();
-        for(int i = 0; i < num; i++){
-            readBufferNodeList.add(new ReadBufferNode(bufferSize, fileList.get(i)));
-        }
-        // create output buffer node
-        WriteBufferNode outputBuffer = new WriteBufferNode(bufferSize, outputFileName);
 
-        while(true){
-            boolean flag = false;
-            int min = 128;
-            int minIndex = -1;
-            for(int i = 0; i < num; i++){
-                ReadBufferNode currentNode = readBufferNodeList.get(i);
-                if(currentNode.index == currentNode.numOfElements){
-                    currentNode.readBlock();
-                }
-                if(currentNode.isComplete()){
-                    continue;
-                }
-                int digit = currentNode.elements[currentNode.index] - '\0';
-                if(digit < min){
-                    min = digit;
-                    minIndex = i;
-                }
-            }
-            if(minIndex != -1){
-                char next = (char)(min + '\0');
-                outputBuffer.writeChar(next);
-                readBufferNodeList.get(minIndex).index ++;
-                if(outputBuffer.index == outputBuffer.size){
-                    outputBuffer.flushToFile();
-                }
-                flag = true;
+
+            File input = new File(input_file);
+            long bs = calculateBlockSize(input);
+
+
+            final BufferedReader br = new BufferedReader(new FileReader(input));
+
+            final List<File> tmpfiles = new ArrayList<>();
+            MyFileReader threads [] = new MyFileReader[r_n];
+
+            //read the input file by spawning 4 threads
+            for(int i = 0;i<r_n;i++)
+            {
+                threads[i] = new MyFileReader(br,bs , tmpfiles,i);
+                threads[i].run();
 
             }
-            if(flag == false){
-                break;
+            for(int i = 0;i<r_n;i++)
+            {
+                threads[i].join();
+
+            }
+
+            System.out.println("Generated "+tmpfiles.size()+" batch files.");
+            long freemem = Runtime.getRuntime().freeMemory();
+            System.out.println("Free memory during merge is "+freemem/1024+ " KB.");
+
+            mergetmpFiles(tmpfiles,output_file,chunk_merge_counter_calculator(freemem,tmpfiles.size()));
+
+            long endTime   = System.nanoTime();
+            long totalTime = endTime - startTime;
+            System.out.println("Time required for MySort is "+totalTime/1000000000.0+" seconds. \n");
+
+        }
+        catch (NumberFormatException e)
+        {
+            System.out.print("Provided input (3rd or 4th or 5th ) in incorrect");
+        }
+        catch (FileNotFoundException e)
+        {
+            System.out.print("Provided input (1st or 2nd) in incorrect");
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+    }
+
+    //calculate how many chunk files should be merged at once
+    private static int chunk_merge_counter_calculator(long free_mem, int size)
+    {
+
+        if(size * 1024 * 8 > free_mem)
+        {
+            return chunk_merge_counter_calculator(free_mem,size/2);
+        }
+        else
+        {
+            System.out.println("Merge counter is "+size);
+            return size;
+        }
+    }
+
+    //Calculate the max file size for the chunk
+    private static long calculateBlockSize(File file)
+    {
+        long sizeoffile = file.length();
+        //Assuming max 1000 chunk files will be generated
+        long blocksize = sizeoffile / 1000;
+        long freemem = Runtime.getRuntime().freeMemory();
+        System.out.println("Free memory found on the system is "+freemem/1024+ " KB.");
+
+
+       /* if( blocksize < freemem/4)
+        {
+            blocksize = freemem/2;
+        }
+        else if(blocksize >= freemem)
+        {
+            System.err.println("We may run out of memory.");
+        } */
+        System.out.println("Block size for reading is "+blocksize/1024+" KB");
+        return blocksize;
+    }
+
+    //merge the chunk files, merge count describes, how many files should be merged at once.
+    private static void mergetmpFiles(List<File> tmpfiles, String outfile, int merge_count)
+    {
+        if(tmpfiles.size() <= merge_count)
+        {
+            try
+            {
+                File out_file = new File(outfile);
+                MyFileMerger t = new MyFileMerger(tmpfiles,out_file);
+                t.start();
+                t.join();
+                System.out.println("Sorting completed! Wrote output in " + outfile);
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
             }
 
         }
-        // close all sortNode
-        for(ReadBufferNode node : readBufferNodeList){
-            node.closeFile();
+        else
+        {
+            int c = 0;
+            List<File> newtmpFiles = new ArrayList<>();
+            List<MyFileMerger> merger = new ArrayList<>();
+
+            int t = 0;
+            //spawn the merger thread for the batch of tmp files
+            while(c!=1)
+            {
+
+                List<File> files_to_merge = new ArrayList<>();
+                if(tmpfiles.size()> merge_count)
+                {
+                    files_to_merge = tmpfiles.subList(0, merge_count);
+                    tmpfiles = tmpfiles.subList(merge_count, tmpfiles.size());
+                }
+                else if(tmpfiles.size() ==1)
+                {
+                    newtmpFiles.add(tmpfiles.get(0));
+                    break;
+                }
+                else
+                {
+                    files_to_merge = tmpfiles;
+                    c = 1;
+                }
+
+                try
+                {
+                    t++;
+                    System.out.println("Merging stage "+t+".");
+                    File tmp_merge_file = File.createTempFile("FileChunkMerge"+t,"Thread.tmp");
+                    tmp_merge_file.deleteOnExit();
+                    MyFileMerger th = new MyFileMerger(files_to_merge,tmp_merge_file);
+                    merger.add(th);
+                    newtmpFiles.add(tmp_merge_file);
+                    th.start();
+
+                }
+                catch (Exception e)
+                {
+                    e.printStackTrace();
+                }
+
+            }
+
+            c=0;
+            for(MyFileMerger m: merger)
+            {
+                try
+                {
+                    m.join();
+                    c++;
+                }
+                catch (Exception e)
+                {
+
+                }
+
+            }
+            mergetmpFiles(newtmpFiles,outfile,merge_count);
         }
     }
-    public static void main(String[] args){
 
+    
+   
 
-    }
 }
+
+
