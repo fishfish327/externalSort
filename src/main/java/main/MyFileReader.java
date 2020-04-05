@@ -1,6 +1,9 @@
 package main;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -12,8 +15,7 @@ public class MyFileReader extends Thread {
     List<File> file_list;
     int thread_no;
 
-    public MyFileReader(BufferedReader br, long max, List<File> file_list, int thread_no)
-    {
+    public MyFileReader(BufferedReader br, long max, List<File> file_list, int thread_no) {
         this.br = br;
         max_capacity = max;
         this.file_list = file_list;
@@ -21,31 +23,24 @@ public class MyFileReader extends Thread {
     }
 
     @Override
-    public void run()
-    {
+    public void run() {
         String line = "";
         List<String> lines = new ArrayList<>();
         long c = 0;
-        try
-        {
+        try {
 
-            while(line != null)
-            {
-                synchronized (br)
-                {
+            while (line != null) {
+                synchronized (br) {
                     line = br.readLine();
-                    if(line != null && !line.equals(""))
-                    {
+                    if (line != null && !line.equals("")) {
                         c += line.length() + 20; //length + overhead
                         lines.add(line);
 
-                        if(c >= max_capacity)
-                        {
+                        if (c >= max_capacity) {
                             File tmpfile = saveTmpFile(lines);
-                            c =0;
+                            c = 0;
                             lines.clear();
-                            synchronized (file_list)
-                            {
+                            synchronized (file_list) {
                                 file_list.add(tmpfile);
                             }
                         }
@@ -54,25 +49,21 @@ public class MyFileReader extends Thread {
                 }
             }
 
-            if(lines.size() > 0)
-            {
+            if (lines.size() > 0) {
                 File tmpfile = saveTmpFile(lines);
                 lines.clear();
-                synchronized (file_list)
-                {
+                synchronized (file_list) {
                     file_list.add(tmpfile);
                 }
             }
 
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
     //save file chunk as temporary file
-    public File saveTmpFile( List<String> lines)
-    {
+    public File saveTmpFile(List<String> lines) {
         Collections.sort(lines, new Comparator<String>() {
             @Override
             public int compare(String o1, String o2) {
@@ -82,18 +73,16 @@ public class MyFileReader extends Thread {
 
         BufferedWriter fbw;
         try {
-            File tmpfile = File.createTempFile("FileChunk","Thread.tmp");
+            File tmpfile = File.createTempFile("FileChunk", "Thread.tmp");
             tmpfile.deleteOnExit();
 
-            fbw = new BufferedWriter(new FileWriter(tmpfile),1024 * 8);
-            for(String r : lines) {
-                fbw.write(r+"\r\n");
+            fbw = new BufferedWriter(new FileWriter(tmpfile), 1024 * 8);
+            for (String r : lines) {
+                fbw.write(r + "\r\n");
             }
             fbw.close();
             return tmpfile;
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             return null;
         }
     }
