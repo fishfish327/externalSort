@@ -6,11 +6,17 @@ public class TmpFileBuffer {
     public BufferedReader fbr;
     public File originalfile;
     private String myLine;
+    private String[] lines;
+    private int capacity;
+    private int index;
+    private int size;
     private boolean empty;
 
-    public TmpFileBuffer(File f) throws IOException {
+    public TmpFileBuffer(File f, int capacity) throws IOException {
         originalfile = f;
         fbr = new BufferedReader(new FileReader(f), 1024 * 8);
+        this.capacity = capacity;
+        lines = new String[capacity];
         fetch();
     }
 
@@ -20,11 +26,22 @@ public class TmpFileBuffer {
 
     private void fetch() throws IOException {
         try {
-            if ((this.myLine = fbr.readLine()) == null) {
-                empty = true;
-                myLine = null;
-            } else {
+            // fetch data into string array
+            this.size = 0;
+            this.index = 0;
+            for(int i = 0; i < lines.length; i++){
+                lines[i] = fbr.readLine();
+                if(lines[i] == null){
+                    break;
+                }
+                size ++;
+            }
+            if(size > 0){
+                myLine = lines[index];
                 empty = false;
+            } else {
+                myLine = null;
+                empty = true;
             }
         } catch (EOFException oef) {
             empty = true;
@@ -39,12 +56,17 @@ public class TmpFileBuffer {
 
     public String peek() {
         if (empty()) return null;
-        return myLine.toString();
+        return myLine;
     }
 
     public String pop() throws IOException {
         String answer = peek();
-        fetch();
+        this.index ++;
+        if(this.index >= this.size){
+            fetch();
+        } else {
+            this.myLine = lines[this.index];
+        }
         return answer;
     }
 

@@ -4,18 +4,15 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 public class MyFileReader extends Thread {
     BufferedReader br;
     long max_capacity;
-    List<File> file_list;
+    LinkedList<File> file_list;
     int thread_no;
 
-    public MyFileReader(BufferedReader br, long max, List<File> file_list, int thread_no) {
+    public MyFileReader(BufferedReader br, long max, LinkedList<File> file_list, int thread_no) {
         this.br = br;
         max_capacity = max;
         this.file_list = file_list;

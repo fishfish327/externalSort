@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 
@@ -13,15 +14,16 @@ public class MySort {
     // parameter numOfThread
     public static void main(String args[]) {
         //check for input
-        if (args.length < 2) {
-            System.out.println("Usage [input file] [output file]");
+        if (args.length <  3) {
+            System.out.println("Usage [input file] [output file] [number of thread]");
             return;
         }
 
         try {
             String input_file = args[0];
             String output_file = args[1];
-            int r_n = 4;
+
+            int r_n = Integer.parseInt(args[2]);
             long startTime = System.nanoTime();
 
 
@@ -31,7 +33,7 @@ public class MySort {
 
             final BufferedReader br = new BufferedReader(new FileReader(input));
 
-            final List<File> tmpfiles = new ArrayList<>();
+            final LinkedList<File> tmpfiles = new LinkedList<>();
             MyFileReader threads[] = new MyFileReader[r_n];
 
             //read the input file by spawning 4 threads
@@ -48,8 +50,11 @@ public class MySort {
             System.out.println("Generated " + tmpfiles.size() + " batch files.");
             long freemem = Runtime.getRuntime().freeMemory();
             System.out.println("Free memory during merge is " + freemem / 1024 + " KB.");
+            int mergeCount = chunk_merge_counter_calculator(freemem, tmpfiles.size(), r_n);
 
-            mergetmpFiles(tmpfiles, output_file, chunk_merge_counter_calculator(freemem, tmpfiles.size()));
+            // start thread to merge file
+            mergeFileWithFixThread(tmpfiles, output_file, r_n, mergeCount);
+            //mergetmpFiles(tmpfiles, output_file, chunk_merge_counter_calculator(freemem, tmpfiles.size()));
 
             long endTime = System.nanoTime();
             long totalTime = endTime - startTime;
@@ -65,10 +70,10 @@ public class MySort {
     }
 
     //calculate how many chunk files should be merged at once
-    private static int chunk_merge_counter_calculator(long free_mem, int size) {
+    private static int chunk_merge_counter_calculator(long free_mem, int size, int r_n) {
 
-        if (size * 1024 * 8 > free_mem) {
-            return chunk_merge_counter_calculator(free_mem, size / 2);
+        if (size * 1024 * 8 * r_n * 100> free_mem) {
+            return chunk_merge_counter_calculator(free_mem, size / 2, r_n);
         } else {
             System.out.println("Merge counter is " + size);
             return size;
@@ -97,7 +102,7 @@ public class MySort {
     }
 
     //merge the chunk files, merge count describes, how many files should be merged at once.
-    private static void mergetmpFiles(List<File> tmpfiles, String outfile, int merge_count) {
+    private static void mergetmpFiles(LinkedList<File> tmpfiles, String outfile, int merge_count) {
         if (tmpfiles.size() <= merge_count) {
             try {
                 File out_file = new File(outfile);
@@ -109,54 +114,24 @@ public class MySort {
                 e.printStackTrace();
             }
 
+        }
+    }
+
+    private static void mergeFileWithFixThread(LinkedList<File> tmpfiles, String outfile, int r_n, int merge_count) throws InterruptedException{
+        LinkedList<File> mergeResult = new LinkedList<>();
+        FileMergeThread[] mergeThreads = new FileMergeThread[merge_count];
+        if(tmpfiles.size() < r_n){
+            // use single thread to merge
+            mergetmpFiles(tmpfiles, outfile,  merge_count);
         } else {
-            int c = 0;
-            List<File> newtmpFiles = new ArrayList<>();
-            List<MyFileMerger> merger = new ArrayList<>();
-
-            int t = 0;
-            //spawn the merger thread for the batch of tmp files
-            while (c != 1) {
-
-                List<File> files_to_merge = new ArrayList<>();
-                if (tmpfiles.size() > merge_count) {
-                    files_to_merge = tmpfiles.subList(0, merge_count);
-                    tmpfiles = tmpfiles.subList(merge_count, tmpfiles.size());
-                } else if (tmpfiles.size() == 1) {
-                    newtmpFiles.add(tmpfiles.get(0));
-                    break;
-                } else {
-                    files_to_merge = tmpfiles;
-                    c = 1;
-                }
-
-                try {
-                    t++;
-                    System.out.println("Merging stage " + t + ".");
-                    File tmp_merge_file = File.createTempFile("FileChunkMerge" + t, "Thread.tmp");
-                    tmp_merge_file.deleteOnExit();
-                    MyFileMerger th = new MyFileMerger(files_to_merge, tmp_merge_file);
-                    merger.add(th);
-                    newtmpFiles.add(tmp_merge_file);
-                    th.start();
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-
+            for(int i = 0; i < r_n; i++){
+                mergeThreads[i] = new FileMergeThread(tmpfiles, mergeResult, merge_count);
+                mergeThreads[i].start();
             }
-
-            c = 0;
-            for (MyFileMerger m : merger) {
-                try {
-                    m.join();
-                    c++;
-                } catch (Exception e) {
-
-                }
-
+            for(int i = 0; i < r_n; i++){
+                mergeThreads[i].join();
             }
-            mergetmpFiles(newtmpFiles, outfile, merge_count);
+            mergeFileWithFixThread(mergeResult, outfile, r_n, merge_count);
         }
     }
 
