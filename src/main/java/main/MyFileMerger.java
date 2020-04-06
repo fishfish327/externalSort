@@ -38,7 +38,7 @@ public class MyFileMerger extends Thread {
         try {
             for (File f : tmpfiles) {
                 // set buffer size
-                pq.add(new TmpFileBuffer(f, 100));
+                pq.add(new TmpFileBuffer(f, MySort.bufferNum, MySort.bufferSize));
             }
 
             BufferedWriter writer = new BufferedWriter(new FileWriter(outfile));

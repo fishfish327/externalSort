@@ -9,10 +9,10 @@ import java.util.*;
 public class MyFileReader extends Thread {
     BufferedReader br;
     long max_capacity;
-    LinkedList<File> file_list;
+    List<File> file_list;
     int thread_no;
 
-    public MyFileReader(BufferedReader br, long max, LinkedList<File> file_list, int thread_no) {
+    public MyFileReader(BufferedReader br, long max, List<File> file_list, int thread_no) {
         this.br = br;
         max_capacity = max;
         this.file_list = file_list;

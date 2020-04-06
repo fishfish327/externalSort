@@ -44,12 +44,19 @@ public class FileMergeThread extends Thread {
 
     public void startMergeFiles(LinkedList<File> mergeList){
         try {
-            File mergeResult = File.createTempFile("MergeFileChunk", "thread");
+            long startTime = System.nanoTime();
+            File mergeResult = File.createTempFile("FileMergeThread", "thread");
             mergeResult.deleteOnExit();
             MyFileMerger merger = new MyFileMerger(mergeList, mergeResult);
             merger.run();
             merger.join();
-
+            long endTime = System.nanoTime();
+            // time in second
+            long totalTime = (endTime - startTime) / 1000000000;
+            System.out.println("Finish merge: " + mergeResult.getName());
+            System.out.println("Time cost is: " +  totalTime + " seconds");
+            System.out.println("Start Time : " + startTime);
+            System.out.println("End Time: " + endTime);
             // add result to resultFileList
             synchronized (resultFileList){
                 resultFileList.addLast(mergeResult);

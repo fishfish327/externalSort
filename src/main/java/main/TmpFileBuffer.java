@@ -12,10 +12,10 @@ public class TmpFileBuffer {
     private int size;
     private boolean empty;
 
-    public TmpFileBuffer(File f, int capacity) throws IOException {
+    public TmpFileBuffer(File f, int bufferNum, int bufferSize) throws IOException {
         originalfile = f;
-        fbr = new BufferedReader(new FileReader(f), 1024 * 8);
-        this.capacity = capacity;
+        fbr = new BufferedReader(new FileReader(f), bufferSize);
+        this.capacity = bufferNum;
         lines = new String[capacity];
         fetch();
     }
