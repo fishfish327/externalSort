@@ -10,9 +10,14 @@ import java.util.PriorityQueue;
 public class MyFileMerger extends Thread {
     List<File> tmpfiles;
     File outfile;
-
-    public MyFileMerger(List<File> tmpfiles, File outfile) {
+    List<TmpFileBuffer> bufferList;
+    /*public MyFileMerger(List<File> tmpfiles, File outfile) {
         this.tmpfiles = tmpfiles;
+        this.outfile = outfile;
+    } */
+
+    public MyFileMerger(List<TmpFileBuffer> bufferList, File outfile){
+        this.bufferList = bufferList;
         this.outfile = outfile;
     }
 
@@ -36,9 +41,9 @@ public class MyFileMerger extends Thread {
         );
 
         try {
-            for (File f : tmpfiles) {
+            for (TmpFileBuffer buffer : bufferList) {
                 // set buffer size
-                pq.add(new TmpFileBuffer(f, MySort.bufferNum, MySort.bufferSize));
+                pq.add(buffer);
             }
 
             BufferedWriter writer = new BufferedWriter(new FileWriter(outfile));

@@ -5,6 +5,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class MyFileReader extends Thread {
     BufferedReader br;
@@ -23,26 +25,28 @@ public class MyFileReader extends Thread {
     public void run() {
         String line = "";
         List<String> lines = new ArrayList<>();
+        Lock fileLock = new ReentrantLock();
         long c = 0;
         try {
 
             while (line != null) {
-                synchronized (br) {
-                    line = br.readLine();
-                    if (line != null && !line.equals("")) {
-                        c += line.length() + 20; //length + overhead
-                        lines.add(line);
+                fileLock.lock();
+                line = br.readLine();
+                fileLock.unlock();
 
-                        if (c >= max_capacity) {
-                            File tmpfile = saveTmpFile(lines);
-                            c = 0;
-                            lines.clear();
-                            synchronized (file_list) {
-                                file_list.add(tmpfile);
-                            }
+                if (line != null && !line.equals("")) {
+                    c += line.length() + 20; //length + overhead
+                    lines.add(line);
+
+                    if (c >= max_capacity) {
+                        File tmpfile = saveTmpFile(lines);
+                        c = 0;
+                        lines.clear();
+                        synchronized (file_list) {
+                            file_list.add(tmpfile);
                         }
-
                     }
+
                 }
             }
 
