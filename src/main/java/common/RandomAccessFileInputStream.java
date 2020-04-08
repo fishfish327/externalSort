@@ -6,11 +6,15 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 
 public class RandomAccessFileInputStream extends InputStream {
-    /** RandomAccessFile */
+    /**
+     * RandomAccessFile
+     */
     private final RandomAccessFile randomAccessFile;
 
-    /** number of remaining bytes */
-    private long                   remaining;
+    /**
+     * number of remaining bytes
+     */
+    private long remaining;
 
     public RandomAccessFileInputStream(File file, long begin, long end) throws IOException {
         this.randomAccessFile = new RandomAccessFile(file, "r");
@@ -20,12 +24,13 @@ public class RandomAccessFileInputStream extends InputStream {
 
     @Override
     public int read() throws IOException {
-        if(this.remaining <= 0){
+        if (this.remaining <= 0) {
             return -1;
         }
-        this.remaining --;
+        this.remaining--;
         return this.randomAccessFile.readByte();
     }
+
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         if (this.remaining <= 0) {
