@@ -10,7 +10,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class MyFilePartitioner {
-    private static List<FileSlice> partition(File input, int sliceSize) throws IOException {
+    public static List<FileSlice> partition(File input, int sliceSize) throws IOException {
         RandomAccessFile raf = null;
         try {
             raf = new RandomAccessFile(input, "r");
@@ -98,5 +98,62 @@ public class MyFilePartitioner {
         }
 
     }
+    public static void InternalSort(File input, File output, int sliceSize, int numOfThread, int bufferSize){
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numOfThread);
+        List<String[]> fileInMemory = new ArrayList<>();
+        BufferedWriter writer = null;
+        try {
+            List<FileSlice> slices = partition(input, sliceSize);
+            List<Future<String[]>> futures = new ArrayList<>(slices.size());
+            for (final FileSlice slice : slices) {
+                futures.add(executor.submit(new Callable<String[]>() {
+                    @Override
+                    public String[] call() throws Exception {
+                        return loadFileInMemory(slice, input, bufferSize);
+                    }
+                }));
+            }
 
+            // get File
+            for (int i = 0; i < futures.size(); i++) {
+                String[] result = futures.get(i).get();
+                fileInMemory.add(result);
+            }
+            executor.shutdown();
+            String[] sortedResult = SortFunction.mergeSort(fileInMemory);
+            writer = new BufferedWriter(new FileWriter(output), bufferSize);
+            for (String l : sortedResult) {
+                writer.write(l + "\r\n");
+            }
+            writer.flush();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+    }
+    private static String[] loadFileInMemory(FileSlice slice, File input, int bufferSize) throws IOException {
+        BufferedReader reader = null;
+        String[] res = null;
+        try {
+            reader = new BufferedReader(new InputStreamReader(new RandomAccessFileInputStream(input,
+                    slice.begin, slice.end)), bufferSize);
+
+            List<String> lines = new ArrayList<>();
+            String line = null;
+            while (true) {
+                line = reader.readLine();
+                if (line == null) {
+                    break;
+                }
+                lines.add(line);
+            }
+            Collections.sort(lines);
+            res = lines.toArray(new String[lines.size()]);
+            return res;
+        } finally {
+            IOUtil.closeQuietly(reader);
+        }
+
+    }
 }

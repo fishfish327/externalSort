@@ -137,35 +137,11 @@ public class MySort {
         }
     }
 
-    // n : num of the threads
-    public static void partition(File input, List<File> tmpfiles, int n, long bs) throws FileNotFoundException {
-        MyFileReader threads[] = new MyFileReader[n];
-        try {
-            BufferedReader bufferedReader = new BufferedReader(new FileReader(input), (int) inputBufferSize);
-            //read the input file by spawning 4 threads
-            for (int i = 0; i < n; i++) {
-
-                threads[i] = new MyFileReader(bufferedReader, bs, tmpfiles, i);
-                threads[i].run();
-
-            }
-            for (int i = 0; i < n; i++) {
-                threads[i].join();
-
-            }
-        } catch (InterruptedException ex) {
-            ex.printStackTrace();
-        }
-
-
-        System.out.println("Generated " + tmpfiles.size() + " batch files.");
-
-    }
 
     public static void main(String args[]) {
         //check for input
         if (args.length < 3) {
-            System.out.println("Usage [input file] [output file] [number of thread]");
+            System.out.println("Usage [input file] [output file] [number of thread] [sort mode]");
             return;
         }
 
@@ -173,39 +149,60 @@ public class MySort {
             String input_file = args[0];
             String output_file = args[1];
 
-            int r_n = Integer.parseInt(args[2]);
-            numOfThread = r_n;
+            numOfThread= Integer.parseInt(args[2]);
+            String mode = args[3];
+
             long startTime = System.nanoTime();
 
-
+            /*
+              Calculate block size
+            */
             File input = new File(input_file);
-            long fileSize = input.length();
             long bs = calculateBlockSize(input);
+            long dataRead = 0L, dataWrite = 0L;
+            long ioThroughput;
+             /*
+              Select mode to sort
+            */
 
-            //final BufferedReader br = new BufferedReader(new FileReader(input));
-            final List<File> tmpfiles = new ArrayList<>();
+            if(mode.equals("internal")){
+                File output = new File(output_file);
+                MyFilePartitioner.InternalSort(input, output, (int)bs, numOfThread, inputBufferSize);
+                // in MB
+                dataRead = input.length() / 1000 / 1000;
+                dataWrite = input.length() / 1000 / 1000;
 
-            //partition(input, tmpfiles, r_n, bs);
-            MyFilePartitioner.partitionAndSort(tmpfiles, input,(int) bs, numOfThread, inputBufferSize);
+            } else if(mode.equals("external")){
+                final List<File> tmpfiles = new ArrayList<>();
 
-            long firstSortTime = (System.nanoTime() - startTime) / 1000000000;
-            System.out.println("Time on first sort is: " + firstSortTime);
-            long freemem = Runtime.getRuntime().freeMemory();
-            System.out.println("Free memory during merge is " + freemem / 1024 + " KB.");
+                MyFilePartitioner.partitionAndSort(tmpfiles, input,(int) bs, numOfThread, inputBufferSize);
 
-            mergetmpFiles(tmpfiles, output_file, chunkMergeCounterCalculator(freemem, tmpfiles.size()));
+                long firstSortTime = (System.nanoTime() - startTime) / 1000000000;
+                System.out.println("Time on first sort is: " + firstSortTime);
+                long freemem = Runtime.getRuntime().freeMemory();
+                System.out.println("Free memory during merge is " + freemem / 1024 + " KB.");
+
+                mergetmpFiles(tmpfiles, output_file, chunkMergeCounterCalculator(freemem, tmpfiles.size()));
+                dataRead = input.length() * 2 / 1000 / 1000;
+                dataWrite = input.length() * 2 / 1000 / 1000;
+
+            }
 
             long endTime = System.nanoTime();
             long totalTime = endTime - startTime;
+            // ioThroughput in MB
+            ioThroughput = (dataRead + dataWrite) / (long)(totalTime / 1000000000.0);
+
+
             System.out.println("Time required for MySort is " + totalTime / 1000000000.0 + " seconds. \n");
+            System.out.println("Total Data Read is " + dataRead + " MB. \n");
+            System.out.println("Total Data Write is " + dataWrite + " MB. \n");
+            System.out.println("IO Throughput is " + ioThroughput + " MB/second. \n");
 
 
         } catch (NumberFormatException e) {
             System.out.print("Provided input (3rd or 4th or 5th ) in incorrect");
-        } /*catch (FileNotFoundException e) {
-            System.out.print("Provided input (1st or 2nd) in incorrect");
-        } */
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
