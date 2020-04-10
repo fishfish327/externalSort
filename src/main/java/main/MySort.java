@@ -160,7 +160,7 @@ public class MySort {
             File input = new File(input_file);
             long bs = calculateBlockSize(input);
             long dataRead = 0L, dataWrite = 0L;
-            long ioThroughput;
+            double ioThroughput;
              /*
               Select mode to sort
             */
@@ -191,7 +191,7 @@ public class MySort {
             long endTime = System.nanoTime();
             long totalTime = endTime - startTime;
             // ioThroughput in MB
-            ioThroughput = (dataRead + dataWrite) / (long)(totalTime / 1000000000.0);
+            ioThroughput = (dataRead + dataWrite) / (totalTime / 1000000000.0);
 
 
             System.out.println("Time required for MySort is " + totalTime / 1000000000.0 + " seconds. \n");
